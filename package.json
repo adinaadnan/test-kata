@@ -4,21 +4,35 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:backend": "docker compose -p desk-tests -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from backend-tests",
-    "test:all": "npm run test:coverage && npm run test:backend && npm run test:e2e",
+    "test:all": "npm run build && npm run test:coverage && npm run test:backend && npm run test:e2e",
     "demo:login": "playwright test --config=playwright.demo.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "5.0.5",
     "jsdom": "^27.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
     "vitest": "5.0.5"
   },
   "engines": {
     "node": ">=24"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   }
 }

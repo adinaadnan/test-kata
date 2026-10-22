@@ -41,7 +41,8 @@ Read [EXERCISE.md](EXERCISE.md). Participants implement ticket claiming; it is i
 Requires Node.js 24+ and Docker Compose. Browser tests run against the app started above.
 
 ```sh
-npm ci
+npm install
+npm run build
 npm run test:coverage
 npx playwright install chromium webkit
 npm run test:e2e
@@ -54,16 +55,18 @@ docker compose -p desk-tests -f compose.test.yaml up --build --abort-on-containe
 docker compose -p desk-tests -f compose.test.yaml down
 ```
 
-Frontend JavaScript has 100% statement, branch, function, and line thresholds. Backend Python has a 100% line/branch gate. Entry modules, API handlers, session helpers, database connections, and demo seeding are included. Dependencies, configuration, HTML, CSS, and SQL do not have executable-source percentage metrics; schema constraints and SQL behavior are exercised against real PostgreSQL. Unit tests simulate browser state and API failures; Playwright exercises the running containers in Chrome, WebKit, and mobile Chrome.
+Frontend TypeScript and React components have 100% statement, branch, function, and line thresholds. Backend Python has a 100% line/branch gate. Entry modules, API handlers, session helpers, database connections, and demo seeding are included. Dependencies, configuration, HTML, CSS, and SQL do not have executable-source percentage metrics; schema constraints and SQL behavior are exercised against real PostgreSQL. Unit tests simulate browser state and API failures; Playwright exercises the running containers in Chrome, WebKit, and mobile Chrome.
 
 Reports are generated under `coverage/` and `playwright-report/`. Browser screenshots and failure traces are in `test-results/`; use `npx playwright show-report` to inspect the report. The same checks are configured in `.github/workflows/test.yml`.
 
 ## Data and local development
 
-- Frontend: static ES modules, served by Nginx. `/api/` is proxied to the backend.
+- Frontend: React with strict TypeScript, bundled by Vite and served by Nginx. `/api/` is proxied to the backend. `frontend/app.tsx` manages sessions and selection; `frontend/views.tsx` contains the screen components; `frontend/api.ts` and `frontend/types.ts` define the typed API client and domain models.
 - Backend: Flask, Gunicorn, Psycopg; opaque HttpOnly session cookie, server-side session expiry.
 - Database: PostgreSQL 17. Schema is in `database/001-init.sql`; synthetic demo records are seeded by `backend/seed.py` on startup without resetting existing rows.
 - Only the frontend is published by the app Compose file, bound to `127.0.0.1:8088`. The test database uses localhost port 55439.
+- `npm run build` type-checks the frontend and its unit tests, then builds `frontend/dist/`. The Docker build runs the same checks. CI runs both the build and coverage gate.
+- For frontend hot reload, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`; run the backend there, or use Docker Compose for the complete app.
 - After editing the app, run `docker compose up -d --build` to rebuild it.
 - To inspect data: `docker compose exec db psql -U workshop -d supportdesk`.
 - Put new migrations in `database/migrations/` and document how to apply them. Postgres init scripts run only when the data volume is first created; rebuilding an image does not apply a migration to existing data.
