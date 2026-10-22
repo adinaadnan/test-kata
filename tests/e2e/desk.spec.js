@@ -64,11 +64,39 @@ test('mobile detail has a working back action; keyboard selection works on deskt
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('customer can sign in and read their own ticket', async ({ page }) => {
-  await login(page, 'amina@example.test');
-  await openTicket(page);
-  await expect(page.locator('.customer')).toHaveText('Amina · Customer');
-});
+for (const [email, customer, ownSubject, hiddenSubject] of [
+  [
+    "amina@example.test",
+    "Amina",
+    "Invoice export is missing rows",
+    "Update our billing contact",
+  ],
+  [
+    "bilal@example.test",
+    "Bilal",
+    "Update our billing contact",
+    "Invoice export is missing rows",
+  ],
+]) {
+  test(`${customer} sees only their own tickets after login and refresh`, async ({
+    page,
+  }) => {
+    await login(page, email);
+    await expect(page.getByRole("button", { name: /#[1-4]/ })).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: new RegExp(hiddenSubject) }),
+    ).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole("button", { name: /#[1-4]/ })).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: new RegExp(hiddenSubject) }),
+    ).toHaveCount(0);
+    await openTicket(page, ownSubject);
+    await expect(page.locator(".customer")).toHaveText(
+      `${customer} · Customer`,
+    );
+  });
+}
 
 test('failed ticket list offers retry without losing the session', async ({ page }) => {
   await page.route('**/api/tickets', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Temporarily unavailable. Please try again.' }) }));

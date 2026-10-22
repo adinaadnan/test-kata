@@ -258,3 +258,42 @@ it.each(["resolve", "reject"] as const)(
     });
   },
 );
+
+it.each(["agent", "customer"] as const)(
+  "shows all tickets for agents and only owned tickets for customers (%s)",
+  async (role) => {
+    const actor = { ...user, id: 3, role };
+    const other = {
+      ...ticket,
+      id: 2,
+      customer_id: 4,
+      subject: "Other customer",
+      customer: "Bilal",
+    };
+    api
+      .mockResolvedValueOnce(actor)
+      .mockResolvedValueOnce([other, ticket])
+      .mockResolvedValueOnce(role === "agent" ? other : ticket);
+    render(<App />);
+    await screen.findByRole("heading", {
+      name: role === "agent" ? other.subject : ticket.subject,
+    });
+    expect(screen.getAllByRole("button", { name: /#[12]/ })).toHaveLength(
+      role === "agent" ? 2 : 1,
+    );
+    if (role === "customer") {
+      expect(
+        screen.queryByRole("button", { name: /Other customer/ }),
+      ).toBeNull();
+      expect(api).not.toHaveBeenCalledWith("/tickets/2");
+    }
+  },
+);
+it("shows an empty inbox when a customer owns none of the returned tickets", async () => {
+  api
+    .mockResolvedValueOnce({ ...user, id: 99, role: "customer" })
+    .mockResolvedValueOnce([ticket]);
+  render(<App />);
+  await screen.findByText("No tickets yet. New requests will appear here.");
+  expect(api).toHaveBeenCalledTimes(2);
+});

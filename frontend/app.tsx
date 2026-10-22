@@ -45,7 +45,11 @@ export function App() {
   async function showInbox(user: User) {
     const current = ++revision.current;
     try {
-      const tickets = await request<Ticket[]>("/tickets");
+      const allTickets = await request<Ticket[]>("/tickets");
+      const tickets =
+        user.role === "agent"
+          ? allTickets
+          : allTickets.filter((ticket) => ticket.customer_id === user.id);
       if (current !== revision.current) return;
       setSelected(null);
       setDetail({ status: "empty" });
