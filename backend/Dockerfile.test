@@ -1,0 +1,7 @@
+FROM python:3.13-slim
+WORKDIR /app
+COPY backend/requirements*.txt .
+RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY backend/ .
+COPY database/ /database/
+CMD ["pytest", "-q", "--cov=app", "--cov=auth", "--cov=store", "--cov=seed", "--cov-branch", "--cov-fail-under=100", "--cov-report=term-missing", "--cov-report=html:/reports/html", "--cov-report=json:/reports/coverage.json"]
