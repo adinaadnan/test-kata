@@ -65,6 +65,8 @@ input { display: block; width: 100%; min-height: 42px; border: 1px solid #b9c8dc
 .metadata { display: grid; grid-template-columns: 90px 1fr; gap: 6px 20px; margin-top: 30px; font-size: 14px; }
 .metadata dt { color: var(--muted); font-weight: 600; }
 .metadata dd { margin: 0; }
+.assignment { margin-top: 24px; }
+.assignment .error { max-width: 48ch; }
 .back { display: none; margin-bottom: 24px; }
 .feedback { margin: 30px; padding: 20px; background: var(--soft); border: 1px solid var(--line); border-radius: 5px; }
 .feedback p { margin-bottom: 12px; }

@@ -38,7 +38,7 @@ Read [EXERCISE.md](EXERCISE.md). Participants implement ticket claiming; it is i
 
 ## Test
 
-Requires Node.js 24+ and Docker Compose. Browser tests run against the app started above.
+Requires Node.js 24+ and Docker Compose. Playwright starts and tears down an isolated app and disposable PostgreSQL database on port 8089, so assignment journeys have a clean fixture and never modify the local workshop database. Set `DESK_URL` to target an already-running app instead.
 
 ```sh
 npm install
@@ -69,7 +69,7 @@ Reports are generated under `coverage/` and `playwright-report/`. Browser screen
 - For frontend hot reload, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`; run the backend there, or use Docker Compose for the complete app.
 - After editing the app, run `docker compose up -d --build` to rebuild it.
 - To inspect data: `docker compose exec db psql -U workshop -d supportdesk`.
-- Put new migrations in `database/migrations/` and document how to apply them. Postgres init scripts run only when the data volume is first created; rebuilding an image does not apply a migration to existing data.
+- SQL migrations in `database/migrations/` are applied idempotently by `backend/seed.py` at app startup. For an existing volume, rebuild and restart the app with `docker compose up -d --build app`; startup applies the migration without deleting existing rows. The Postgres init scripts run only when the data volume is first created, so rebuilding the database image alone does not apply schema changes.
 
 Run this synthetic workshop environment locally. The demo accounts, HTTP cookie configuration, and known password are for workshop use.
 

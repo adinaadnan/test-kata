@@ -21,7 +21,6 @@ test('login, ticket details, refresh, and logout use the real API', async ({ pag
   await expect(page.getByRole('button', { name: /#[1-4]/ })).toHaveCount(4);
   await openTicket(page);
   await expect(page.getByText('Our October export stops at row 200.', { exact: false })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Assign to me' })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('ticket-detail.png'), fullPage: true });
   await page.reload();
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
@@ -113,6 +112,42 @@ test('expired session sends the reader back to sign in', async ({ page }) => {
   await page.getByRole('button', { name: /Update our billing contact/ }).click();
   await expect(page.getByRole('heading', { name: 'Sign in', exact: true })).toBeVisible();
   await expect(page.getByRole('alert')).toContainText('session has expired');
+});
+
+test('Sara claims a ticket and remains assigned after refresh', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Assignment browser proof runs once against the isolated fixture.');
+  await login(page);
+  await openTicket(page, 'Invoice export is missing rows');
+  await expect(page.getByText('Unassigned', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Assign to me' }).click();
+  await expect(page.getByText('Assigned to Sara', { exact: true })).toBeVisible();
+  await page.reload();
+  await openTicket(page, 'Invoice export is missing rows');
+  await expect(page.getByText('Assigned to Sara', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Assign to me' })).toHaveCount(0);
+});
+
+test('Omar receives conflict feedback when Sara claims his stale ticket', async ({ browser }, testInfo) => {
+  test.skip(testInfo.project.name !== 'chromium', 'Assignment browser proof runs once against the isolated fixture.');
+  const sara = await browser.newPage();
+  const omar = await browser.newPage();
+  try {
+    await login(sara, 'sara@example.test');
+    await login(omar, 'omar@example.test');
+    await openTicket(sara, 'Update our billing contact');
+    await openTicket(omar, 'Update our billing contact');
+    await expect(omar.getByText('Unassigned', { exact: true })).toBeVisible();
+
+    await sara.getByRole('button', { name: 'Assign to me' }).click();
+    await expect(sara.getByText('Assigned to Sara', { exact: true })).toBeVisible();
+    await omar.getByRole('button', { name: 'Assign to me' }).click();
+    await expect(omar.getByRole('alert')).toContainText('already been claimed');
+    await expect(omar.getByText('Assigned to Sara', { exact: true })).toBeVisible();
+    await expect(omar.getByRole('button', { name: 'Assign to me' })).toHaveCount(0);
+  } finally {
+    await sara.close();
+    await omar.close();
+  }
 });
 
 test('API denies anonymous access and invalidates logged-out sessions', async ({ request }) => {

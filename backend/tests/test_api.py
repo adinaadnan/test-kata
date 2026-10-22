@@ -1,4 +1,6 @@
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import patch
 
 import psycopg
@@ -95,8 +97,72 @@ def test_agent_inbox_and_details(client, login):
     ticket = client.get('/api/tickets/1').json
     assert ticket['subject'] == 'Invoice export is missing rows'
     assert ticket['customer'] == 'Amina'
+    assert ticket['assignee_id'] is None and ticket['assignee'] is None
     assert 'Friday' in ticket['description']
     assert not {'password_hash', 'token_hash'} & ticket.keys()
+
+
+def test_ticket_claim_persists_and_cannot_be_replaced(client, login):
+    with connect() as db:
+        db.execute('UPDATE tickets SET assignee_id=NULL WHERE id=1')
+    login()
+    response = client.post('/api/tickets/1/assign')
+    assert response.status_code == 200
+    assert response.json['assignee_id'] == 3
+    assert response.json['assignee'] == 'Sara'
+    assert client.get('/api/tickets/1').json['assignee'] == 'Sara'
+    assert client.get('/api/tickets').json[0]['assignee'] == 'Sara'
+
+    conflict = client.post('/api/tickets/1/assign')
+    assert conflict.status_code == 409
+    assert 'already been claimed' in conflict.json['error']
+    assert client.get('/api/tickets/1').json['assignee'] == 'Sara'
+
+
+def test_claim_requires_an_agent_and_existing_ticket(client, login):
+    with connect() as db:
+        db.execute('UPDATE tickets SET assignee_id=NULL WHERE id=1')
+    assert client.post('/api/tickets/1/assign').status_code == 401
+    login('amina@example.test')
+    denied = client.post('/api/tickets/1/assign')
+    assert denied.status_code == 403
+    assert 'support agents' in denied.json['error']
+    assert client.get('/api/tickets/1').json['assignee_id'] is None
+
+    client.post('/api/logout')
+    login()
+    for ticket_id in (9999, 9999999999999999):
+        missing = client.post(f'/api/tickets/{ticket_id}/assign')
+        assert missing.status_code == 404
+        assert missing.json == {'error': 'Ticket not found.'}
+
+
+def test_concurrent_agent_claims_have_exactly_one_winner(client):
+    from app import create_app
+
+    with connect() as db:
+        db.execute('UPDATE tickets SET assignee_id=NULL WHERE id=1')
+    app = create_app()
+    app.config['TESTING'] = True
+    sara = app.test_client()
+    omar = app.test_client()
+    assert sara.post('/api/login', json={'email': 'sara@example.test', 'password': 'workshop123'}).status_code == 200
+    assert omar.post('/api/login', json={'email': 'omar@example.test', 'password': 'workshop123'}).status_code == 200
+    gate = Barrier(2)
+
+    def claim(agent):
+        gate.wait()
+        return agent.post('/api/tickets/1/assign')
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(claim, (sara, omar)))
+
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    winner = next(response for response in responses if response.status_code == 200)
+    with connect() as db:
+        saved = db.execute('SELECT assignee_id FROM tickets WHERE id=1').fetchone()['assignee_id']
+    assert saved == winner.json['assignee_id']
+    assert saved in (3, 4)
 
 
 def test_customer_can_read_own_ticket(client, login):
@@ -193,6 +259,7 @@ def test_startup_initializes_an_empty_database_without_resetting_existing_data()
     seed()
     with connect() as db:
         assert db.execute('SELECT count(*) AS count FROM tickets').fetchone()['count'] == 4
+        assert db.execute('SELECT assignee_id FROM tickets WHERE id=1').fetchone()['assignee_id'] is None
         db.execute("UPDATE tickets SET subject='Keep this workshop change' WHERE id=1")
     seed()
     with connect() as db:

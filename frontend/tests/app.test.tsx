@@ -53,6 +53,8 @@ async function mountInbox() {
   render(<App />);
   await screen.findByRole("heading", { name: ticket.subject });
 }
+const assignedTicket: Ticket = { ...ticket, assignee_id: 3, assignee: "Sara" };
+const secondTicket: Ticket = { ...ticket, id: 2, subject: "Second ticket" };
 beforeEach(() => {
   vi.resetAllMocks();
   signedIn();
@@ -164,6 +166,63 @@ it("shows recoverable logout failures", async () => {
   api.mockRejectedValueOnce(reject());
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
   await screen.findByRole("button", { name: "Try again" });
+});
+it("claims a ticket and replaces the detail with the saved assignment", async () => {
+  await mountInbox();
+  api.mockResolvedValueOnce(assignedTicket);
+  fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
+  await screen.findByText("Assigned to Sara");
+  expect(api).toHaveBeenCalledWith("/tickets/1/assign", { method: "POST" });
+  expect(screen.queryByRole("button", { name: "Assign to me" })).toBeNull();
+});
+it("refreshes assignment after a claim conflict and reports why", async () => {
+  await mountInbox();
+  const taken = { ...ticket, assignee_id: 4, assignee: "Omar" };
+  api.mockRejectedValueOnce(reject(409)).mockResolvedValueOnce(taken);
+  fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
+  expect((await screen.findByRole("alert")).textContent).toBe("Please try again.");
+  expect(await screen.findByText("Assigned to Omar")).toBeTruthy();
+  expect(api).toHaveBeenLastCalledWith("/tickets/1");
+});
+it("keeps the unassigned ticket and reports other claim failures", async () => {
+  await mountInbox();
+  api.mockRejectedValueOnce(reject());
+  fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
+  expect((await screen.findByRole("alert")).textContent).toBe("Please try again.");
+  expect(screen.getByText("Unassigned")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Assign to me" })).toBeTruthy();
+});
+it("does not apply a claim response after selecting a different ticket", async () => {
+  signedIn({ mobile: true, tickets: [ticket, secondTicket] });
+  render(<App />);
+  await screen.findByRole("heading", { name: "Ticket inbox" });
+  fireEvent.click(screen.getByRole("button", { name: /#1 Invoice export/ }));
+  await screen.findByRole("heading", { name: ticket.subject });
+  const pending = deferred<Ticket>();
+  api.mockImplementationOnce(() => pending.promise).mockResolvedValueOnce(secondTicket);
+  fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
+  fireEvent.click(screen.getByRole("button", { name: /#2 Second ticket/ }));
+  await screen.findByRole("heading", { name: secondTicket.subject });
+  await act(async () => pending.resolve(assignedTicket));
+  expect(screen.getByRole("heading", { name: secondTicket.subject })).toBeTruthy();
+});
+it("does not apply a conflict refresh after selecting a different ticket", async () => {
+  signedIn({ mobile: true, tickets: [ticket, secondTicket] });
+  render(<App />);
+  await screen.findByRole("heading", { name: "Ticket inbox" });
+  fireEvent.click(screen.getByRole("button", { name: /#1 Invoice export/ }));
+  await screen.findByRole("heading", { name: ticket.subject });
+  const refresh = deferred<Ticket>();
+  api
+    .mockRejectedValueOnce(reject(409))
+    .mockImplementationOnce(() => refresh.promise)
+    .mockResolvedValueOnce(secondTicket);
+  fireEvent.click(screen.getByRole("button", { name: "Assign to me" }));
+  await waitFor(() => expect(api).toHaveBeenCalledWith("/tickets/1"));
+  fireEvent.click(screen.getByRole("button", { name: /#2 Second ticket/ }));
+  await screen.findByRole("heading", { name: secondTicket.subject });
+  await act(async () => refresh.resolve({ ...ticket, assignee: "Omar", assignee_id: 4 }));
+  expect(screen.getByRole("heading", { name: secondTicket.subject })).toBeTruthy();
 });
 it.each(["resolve", "reject"] as const)(
   "ignores a stale ticket %s after a newer selection",

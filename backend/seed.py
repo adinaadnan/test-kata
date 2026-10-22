@@ -28,6 +28,9 @@ def seed():
         db.execute('SELECT pg_advisory_xact_lock(40122)')
         if db.execute("SELECT to_regclass('public.users') AS name").fetchone()['name'] is None:
             db.execute((Path(__file__).resolve().parent.parent / 'database/001-init.sql').read_text())
+        migrations = Path(__file__).resolve().parent.parent / 'database/migrations'
+        for migration in sorted(migrations.glob('*.sql')):
+            db.execute(migration.read_text())
         for name, email, role in ACCOUNTS:
             db.execute('INSERT INTO users(name,email,password_hash,role) VALUES (%s,%s,%s,%s) ON CONFLICT(email) DO NOTHING',
                        (name, email, generate_password_hash('workshop123'), role))

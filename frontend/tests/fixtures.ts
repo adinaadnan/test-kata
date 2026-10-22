@@ -13,6 +13,8 @@ export const ticket: Ticket = {
   description: "Report missing.",
   priority: "high",
   created_at: "2026-10-22T09:00:00Z",
+  assignee_id: null,
+  assignee: null,
 };
 export function deferred<T>() {
   let resolve!: (value: T) => void;

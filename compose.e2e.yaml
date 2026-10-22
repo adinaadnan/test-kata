@@ -1,0 +1,29 @@
+services:
+  db-e2e:
+    build: ./database
+    environment:
+      POSTGRES_DB: desk_e2e
+      POSTGRES_USER: workshop
+      POSTGRES_PASSWORD: e2e-only
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U workshop -d desk_e2e']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  app-e2e:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://workshop:e2e-only@db-e2e/desk_e2e
+      PORT: 8000
+    ports:
+      - '127.0.0.1:8089:8000'
+    depends_on:
+      db-e2e:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health")']
+      interval: 3s
+      timeout: 2s
+      retries: 30

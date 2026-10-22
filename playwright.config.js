@@ -2,12 +2,15 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  fullyParallel: true,
+  globalSetup: './tests/e2e/global-setup.js',
+  globalTeardown: './tests/e2e/global-teardown.js',
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
-    baseURL: process.env.DESK_URL || 'http://127.0.0.1:8088',
+    baseURL: process.env.DESK_URL || 'http://127.0.0.1:8089',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

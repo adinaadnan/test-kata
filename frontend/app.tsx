@@ -100,6 +100,27 @@ export function App() {
     }
   }
 
+  async function assignTicket(id: number) {
+    const current = revision.current;
+    try {
+      const ticket = await request<Ticket>(`/tickets/${id}/assign`, {
+        method: "POST",
+      });
+      if (current === revision.current) setDetail({ status: "ready", ticket });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        try {
+          const ticket = await request<Ticket>(`/tickets/${id}`);
+          if (current === revision.current)
+            setDetail({ status: "ready", ticket });
+        } catch {
+          // Keep the current detail visible and report the original conflict.
+        }
+      }
+      throw error;
+    }
+  }
+
   if (screen.status === "boot")
     return (
       <p className="boot" role="status">
@@ -118,6 +139,7 @@ export function App() {
       detail={detail}
       showDetail={showDetail}
       onOpen={openTicket}
+      onAssign={assignTicket}
       onBack={() => {
         revision.current++;
         setShowDetail(false);

@@ -86,10 +86,16 @@ export function Login({
 export function TicketDetail({
   ticket,
   onBack,
+  isAgent,
+  onAssign,
 }: {
   ticket: Ticket;
   onBack: () => void;
+  isAgent: boolean;
+  onAssign: (id: number) => Promise<void>;
 }) {
+  const [assigning, setAssigning] = useState(false);
+  const [assignmentError, setAssignmentError] = useState("");
   const heading = useRef<HTMLHeadingElement>(null);
   useLayoutEffect(() => {
     heading.current!.focus({ preventScroll: true });
@@ -100,6 +106,19 @@ export function TicketDetail({
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(ticket.created_at));
+
+  async function assign() {
+    setAssigning(true);
+    setAssignmentError("");
+    try {
+      await onAssign(ticket.id);
+    } catch (error) {
+      setAssignmentError((error as Error).message);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   return (
     <>
       <button className="text-button back" type="button" onClick={onBack}>
@@ -123,9 +142,30 @@ export function TicketDetail({
       <dl className="metadata">
         <dt>Priority</dt>
         <dd>{priorities[ticket.priority]}</dd>
+        <dt>Assignee</dt>
+        <dd>
+          {ticket.assignee ? `Assigned to ${ticket.assignee}` : "Unassigned"}
+        </dd>
         <dt>Created</dt>
         <dd>{created}</dd>
       </dl>
+      {isAgent && ticket.assignee_id === null ? (
+        <div className="assignment">
+          <button
+            className="primary"
+            type="button"
+            disabled={assigning}
+            onClick={() => void assign()}
+          >
+            {assigning ? "Assigning…" : "Assign to me"}
+          </button>
+        </div>
+      ) : null}
+      {assignmentError ? (
+        <p className="error" role="alert">
+          {assignmentError}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -142,6 +182,7 @@ export function Inbox({
   detail,
   showDetail,
   onOpen,
+  onAssign,
   onBack,
   onSignOut,
 }: {
@@ -151,6 +192,7 @@ export function Inbox({
   detail: Detail;
   showDetail: boolean;
   onOpen: (id: number) => void;
+  onAssign: (id: number) => Promise<void>;
   onBack: () => void;
   onSignOut: () => void;
 }) {
@@ -220,7 +262,12 @@ export function Inbox({
         <section className="detail" aria-label="Ticket details">
           <div className="detail-inner">
             {detail.status === "ready" ? (
-              <TicketDetail ticket={detail.ticket} onBack={back} />
+              <TicketDetail
+                ticket={detail.ticket}
+                onBack={back}
+                isAgent={user.role === "agent"}
+                onAssign={onAssign}
+              />
             ) : detail.status === "loading" ? (
               <p className="empty" role="status">
                 Loading ticket…

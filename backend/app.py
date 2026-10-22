@@ -12,7 +12,7 @@ from store import connect
 
 # Match password verification work for unknown emails as well.
 DUMMY_PASSWORD = generate_password_hash('not-a-demo-password')
-TICKET_FIELDS = 't.id,t.customer_id,t.subject,t.description,t.priority,t.created_at,u.name AS customer'
+TICKET_FIELDS = 't.id,t.customer_id,t.subject,t.description,t.priority,t.created_at,u.name AS customer,t.assignee_id,a.name AS assignee'
 
 
 def create_app():
@@ -106,7 +106,7 @@ def create_app():
     @require_user
     def tickets():
         with connect() as db:
-            rows = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id ORDER BY t.id').fetchall()
+            rows = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id LEFT JOIN users a ON a.id=t.assignee_id ORDER BY t.id').fetchall()
         return jsonify(rows)
 
     @app.get('/api/tickets/<int:ticket_id>')
@@ -115,9 +115,32 @@ def create_app():
         if ticket_id > 2147483647:
             return jsonify(error='Ticket not found.'), 404
         with connect() as db:
-            row = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id WHERE t.id=%s', (ticket_id,)).fetchone()
+            row = db.execute(f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id LEFT JOIN users a ON a.id=t.assignee_id WHERE t.id=%s', (ticket_id,)).fetchone()
         if not row:
             return jsonify(error='Ticket not found.'), 404
+        return jsonify(row)
+
+    @app.post('/api/tickets/<int:ticket_id>/assign')
+    @require_user
+    def assign_ticket(ticket_id):
+        if g.user['role'] != 'agent':
+            return jsonify(error='Only support agents can claim tickets.'), 403
+        if ticket_id > 2147483647:
+            return jsonify(error='Ticket not found.'), 404
+        with connect() as db:
+            claimed = db.execute(
+                'UPDATE tickets SET assignee_id=%s WHERE id=%s AND assignee_id IS NULL RETURNING id',
+                (g.user['id'], ticket_id),
+            ).fetchone()
+            if not claimed:
+                exists = db.execute('SELECT 1 FROM tickets WHERE id=%s', (ticket_id,)).fetchone()
+                if not exists:
+                    return jsonify(error='Ticket not found.'), 404
+                return jsonify(error='This ticket has already been claimed. Refresh to see the assignee.'), 409
+            row = db.execute(
+                f'SELECT {TICKET_FIELDS} FROM tickets t JOIN users u ON u.id=t.customer_id LEFT JOIN users a ON a.id=t.assignee_id WHERE t.id=%s',
+                (ticket_id,),
+            ).fetchone()
         return jsonify(row)
 
     return app
