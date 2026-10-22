@@ -69,3 +69,19 @@ Reports are generated under `coverage/` and `playwright-report/`. Browser screen
 - Put new migrations in `database/migrations/` and document how to apply them. Postgres init scripts run only when the data volume is first created; rebuilding an image does not apply a migration to existing data.
 
 Run this synthetic workshop environment locally. The demo accounts, HTTP cookie configuration, and known password are for workshop use.
+
+## Present the login flow
+
+With the app running, launch a visible Chromium browser and Playwright Inspector:
+
+```sh
+npm run demo:login
+```
+
+The demo pauses three times: on the login screen, with Sara's credentials filled, and after the inbox assertions pass. Click **Resume** in Playwright Inspector at each pause (or press F8 while the Inspector is focused). Actions run slowly enough to narrate. The browser stays open at the final pause until you resume. Stop early with Ctrl+C in the terminal.
+
+This demo has its own config and is excluded from the regular automated suite. To verify its complete flow without pauses:
+
+```sh
+DESK_DEMO_AUTO=1 npm run demo:login
+```
