@@ -1,0 +1,20 @@
+.env
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+.coverage*
+coverage/
+htmlcov/
+.pytest_cache/
+playwright-report/
+test-results/
+frontend/dist/
+# Instructor planning is kept outside the participant Git history.
+planning/
+.impeccable/
+PRODUCT.md
+DESIGN.md
+DESIGN.tokens.json
+facilitator/
