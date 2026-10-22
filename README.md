@@ -25,8 +25,8 @@ These accounts and ticket records are synthetic.
 
 ## Layout
 
-- `frontend/`: browser interface and Nginx API proxy.
-- `backend/`: Python API and server-side sessions.
+- `frontend/`: browser interface, built by Vite.
+- `backend/`: Flask API, server-side sessions, and built frontend hosting.
 - `database/`: PostgreSQL schema and migrations.
 - `tests/`: browser and database integration tests.
 
@@ -61,10 +61,10 @@ Reports are generated under `coverage/` and `playwright-report/`. Browser screen
 
 ## Data and local development
 
-- Frontend: React with strict TypeScript, bundled by Vite and served by Nginx. `/api/` is proxied to the backend. `frontend/app.tsx` manages sessions and selection; `frontend/views.tsx` contains the screen components; `frontend/api.ts` and `frontend/types.ts` define the typed API client and domain models.
+- Frontend: React with strict TypeScript, bundled by Vite and served by Flask alongside `/api/`. `frontend/app.tsx` manages sessions and selection; `frontend/views.tsx` contains the screen components; `frontend/api.ts` and `frontend/types.ts` define the typed API client and domain models.
 - Backend: Flask, Gunicorn, Psycopg; opaque HttpOnly session cookie, server-side session expiry.
-- Database: PostgreSQL 17. Schema is in `database/001-init.sql`; synthetic demo records are seeded by `backend/seed.py` on startup without resetting existing rows.
-- Only the frontend is published by the app Compose file, bound to `127.0.0.1:8088`. The test database uses localhost port 55439.
+- Database: PostgreSQL 17. Schema is in `database/001-init.sql`; on an empty database, `backend/seed.py` applies the initial schema under a transaction lock, then seeds synthetic demo records without resetting existing rows.
+- The combined `app` service is published at `127.0.0.1:8088`. The test database uses localhost port 55439.
 - `npm run build` type-checks the frontend and its unit tests, then builds `frontend/dist/`. The Docker build runs the same checks. CI runs both the build and coverage gate.
 - For frontend hot reload, run `npm run dev`. Vite proxies `/api` to `http://127.0.0.1:8000`; run the backend there, or use Docker Compose for the complete app.
 - After editing the app, run `docker compose up -d --build` to rebuild it.
@@ -88,3 +88,20 @@ This demo has its own config and is excluded from the regular automated suite. T
 ```sh
 DESK_DEMO_AUTO=1 npm run demo:login
 ```
+
+## Deploy frontend and backend together on Render
+
+The root `Dockerfile` builds the React frontend, then copies it into the Python image. One Gunicorn process serves the built UI and `/api/` on the same origin. PostgreSQL remains a separate managed database so app redeploys preserve data.
+
+1. Create a Render PostgreSQL database and a **Web Service** from this repository's `main` branch. Choose **Docker** as the language/runtime.
+2. Use the kata repository root as the build context and `./Dockerfile` as the Dockerfile path. If deploying from the parent presentation repository, set **Root Directory** to `kata`.
+3. Set the web service's `DATABASE_URL` to the database's **internal connection URL**, with both resources in the same Render region. Keep it server-side.
+4. Set the health check path to `/api/health`. Leave Docker Command empty to use the image's startup command. Render supplies `PORT`; startup binds to `0.0.0.0:$PORT` (8000 locally).
+5. Deploy. Startup initializes a completely empty database and seeds the demo accounts once. Existing tables and records are preserved; future schema migrations must be applied explicitly.
+6. Open the service URL and verify login, ticket reads, refresh, and logout. With Render's `RENDER=true` environment marker, Flask trusts one forwarded protocol header so HTTPS login cookies have `Secure`; it retains the original Host for same-origin checks.
+
+Local startup uses the same combined image via `docker compose up --build`. After upgrading from the old three-service Compose layout, use `docker compose down --remove-orphans` followed by `docker compose up -d --build --wait`. This preserves the database volume; do not add `-v`.
+
+For a local port override, the image also supports `docker run -e PORT=10000 -e DATABASE_URL=... -p 127.0.0.1:8088:10000 desk`. Set `RENDER=true` only behind the trusted Render proxy. The workshop still uses synthetic accounts and a known demo password.
+
+References: [Docker on Render](https://render.com/docs/docker), [web service ports](https://render.com/docs/web-services#port-binding), [Flask proxy configuration](https://flask.palletsprojects.com/en/stable/deploying/proxy_fix/). This configuration is tested locally; it has not been deployed to a Render account.

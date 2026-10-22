@@ -1,4 +1,6 @@
 """Create repeatable local demo records without resetting workshop changes."""
+from pathlib import Path
+
 from werkzeug.security import generate_password_hash
 
 from store import connect
@@ -24,6 +26,8 @@ TICKETS = [
 def seed():
     with connect() as db:
         db.execute('SELECT pg_advisory_xact_lock(40122)')
+        if db.execute("SELECT to_regclass('public.users') AS name").fetchone()['name'] is None:
+            db.execute((Path(__file__).resolve().parent.parent / 'database/001-init.sql').read_text())
         for name, email, role in ACCOUNTS:
             db.execute('INSERT INTO users(name,email,password_hash,role) VALUES (%s,%s,%s,%s) ON CONFLICT(email) DO NOTHING',
                        (name, email, generate_password_hash('workshop123'), role))

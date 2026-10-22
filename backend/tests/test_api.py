@@ -154,3 +154,47 @@ def test_database_constraints(statement, params):
     with pytest.raises(psycopg.IntegrityError):
         with connect() as db:
             db.execute(statement, params)
+
+
+def test_combined_frontend_serves_index_and_assets(client, tmp_path):
+    client.application.static_folder = str(tmp_path)
+    (tmp_path / 'index.html').write_text('<h1>Desk</h1>')
+    (tmp_path / 'assets').mkdir()
+    (tmp_path / 'assets/app.js').write_text('console.log("Desk")')
+    response = client.get('/')
+    assert response.status_code == 200
+    assert response.content_type.startswith('text/html')
+    assert b'<h1>Desk</h1>' in response.data
+    assert client.get('/assets/app.js').data == b'console.log("Desk")'
+    assert client.get('/api/unknown').json == {'error': 'Not found.'}
+    assert client.get('/../requirements.txt').status_code == 404
+
+
+def test_render_https_proxy_sets_secure_cookie_without_trusting_forwarded_host(monkeypatch):
+    from app import create_app
+    monkeypatch.setenv('RENDER', 'true')
+    client = create_app().test_client()
+    response = client.post('/api/login', json={'email': 'sara@example.test', 'password': 'workshop123'},
+                           headers={'Origin': 'http://localhost', 'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'attacker.example'})
+    assert response.status_code == 200
+    assert 'Secure;' in response.headers['Set-Cookie']
+    assert client.post('/api/logout', headers={'Origin': 'https://attacker.example', 'X-Forwarded-Proto': 'https'}).status_code == 403
+
+
+def test_local_requests_do_not_trust_forwarded_protocol(client, login):
+    response = login(headers={'X-Forwarded-Proto': 'https'})
+    assert response.status_code == 200
+    assert 'Secure;' not in response.headers['Set-Cookie']
+
+
+def test_startup_initializes_an_empty_database_without_resetting_existing_data():
+    with connect() as db:
+        db.execute('DROP TABLE sessions,tickets,users')
+    seed()
+    with connect() as db:
+        assert db.execute('SELECT count(*) AS count FROM tickets').fetchone()['count'] == 4
+        db.execute("UPDATE tickets SET subject='Keep this workshop change' WHERE id=1")
+    seed()
+    with connect() as db:
+        assert db.execute('SELECT subject FROM tickets WHERE id=1').fetchone()['subject'] == 'Keep this workshop change'
+        db.execute("UPDATE tickets SET subject='Invoice export is missing rows' WHERE id=1")

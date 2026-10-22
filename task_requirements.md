@@ -13,7 +13,7 @@ This is one feature spanning the **frontend, backend, and database**. Work in te
 - A working sign-in and sign-out flow with server-side sessions.
 - A ticket inbox and ticket detail view, including a mobile layout.
 - PostgreSQL containing synthetic users and tickets.
-- Separate `frontend/`, `backend/`, and `database/` directories, Dockerfiles, and Docker Compose startup.
+- Separate `frontend/`, `backend/`, and `database/` directories, one frontend/API Dockerfile, and Docker Compose startup with PostgreSQL.
 - Passing frontend unit tests, backend/API/database tests, and Playwright tests.
 
 | Account | Role |

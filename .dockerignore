@@ -13,3 +13,6 @@ DESIGN.tokens.json
 __pycache__
 .pytest_cache
 .coverage*
+
+frontend/dist
+backend/static

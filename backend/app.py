@@ -1,8 +1,10 @@
 """Desk's read-only ticket API and session endpoints."""
+import os
 from urllib.parse import urlsplit
 
 import psycopg
 from flask import Flask, g, jsonify, request
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from auth import COOKIE, create_session, digest, require_user
@@ -14,7 +16,10 @@ TICKET_FIELDS = 't.id,t.customer_id,t.subject,t.description,t.priority,t.created
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static', static_url_path='/')
+    if os.environ.get('RENDER') == 'true':
+        # Render terminates HTTPS at its proxy; retain the original request host.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=0, x_proto=1, x_host=0, x_port=0, x_prefix=0)
     app.config['MAX_CONTENT_LENGTH'] = 4096
 
     @app.before_request
@@ -50,6 +55,10 @@ def create_app():
     def unavailable(_error):
         app.logger.warning('Database connection unavailable')
         return jsonify(error='The service is temporarily unavailable. Please try again.'), 503
+
+    @app.get('/')
+    def index():
+        return app.send_static_file('index.html')
 
     @app.get('/api/health')
     def health():
