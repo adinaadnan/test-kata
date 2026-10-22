@@ -1,7 +1,7 @@
 FROM node:24-alpine AS frontend-build
 WORKDIR /build
-COPY package*.json ./
-RUN npm ci
+COPY package.json ./
+RUN npm install
 COPY tsconfig.json vite.config.ts ./
 COPY frontend/ ./frontend/
 RUN npm run build
